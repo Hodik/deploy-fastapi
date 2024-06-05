@@ -1,0 +1,67 @@
+service: yt-guide
+
+plugins:
+  - serverless-python-requirements
+
+custom:
+  pythonRequirements:
+    dockerizePip: non-linux
+    usePoetry: true
+
+  bucketName: yt-guide-storage
+
+provider:
+  name: aws
+  architecture: x86_64
+  runtime: python3.11
+  timeout: 30
+  region: us-west-1
+  logRetentionInDays: 14
+  iam:
+    role: !GetAtt AppRole.Arn
+  environment:
+    ENVIRONMENT: ${opt:stage}
+    S3_BUCKET: ${self:custom.bucketName}
+
+
+functions:
+  app:
+    handler: main.app
+    events:
+      - httpApi: 
+          method: any
+          path: /{proxy+}
+      - httpApi:
+          method: any
+          path: /
+
+resources:
+  Resources:
+    AppRole:
+      Type: "AWS::IAM::Role"
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+              Action: sts:AssumeRole
+
+        Policies:
+          - PolicyName: YtGuidePolicy
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - "s3:*"
+                  Resource:
+                    - !GetAtt AppS3Bucket.Arn
+
+    
+    AppS3Bucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:custom.bucketName}
